@@ -90,8 +90,12 @@ app.post('/logout', (req, res, next) => {
 });
 
 // Handle undefined routes
-app.all('*', (req, res, next) => {
-  next(new AppError(`Can't find ${req.originalUrl} on this server`, 404));
+// 404 handler for unknown routes
+app.all("*", (req, res, next) => {
+  res.status(404).json({
+    status: "fail",
+    message: `Can't find ${req.originalUrl} on this server!`,
+  });
 });
 
 
