@@ -8,7 +8,7 @@ export const dbConnect = async () => {
     await mongoose.connect(process.env.MONGO_URL)
     console.log("db Connected with Atlas");
   } catch (error) {
-    
+    console.log(error?.message)
   }
 };
 

@@ -2,12 +2,11 @@ import { UserPreference } from "../models/userPreferencModel.mjs";
 
 
 // Save or update user preferences
-const savePreferences = async (req, res) => {
+const savePreferences = async (req, res,  next) => {
   const { userId, favoriteRecipes, diet, cuisine } = req.body;
 
   try {
     let preferences = await UserPreference.findOne({ userId });
-
     if (preferences) {
       preferences.favoriteRecipes = favoriteRecipes || preferences.favoriteRecipes;
       preferences.diet = diet || preferences.diet;
@@ -18,7 +17,7 @@ const savePreferences = async (req, res) => {
     await preferences.save();
     res.status(200).json(preferences);
   } catch (error) {
-    res.status(500).json({ message: 'Error saving preferences', error: error.message });
+    next(new AppError("Error saving preferences", 500));
   }
 };
 

@@ -3,4 +3,4 @@ import { recipeRoutes } from "./recipeRoutes.mjs";
 
 export const indexRoute = express.Router();
 
-indexRoute.use("/api/recipe", recipeRoutes);
+indexRoute.use("/api/recipes", recipeRoutes);
