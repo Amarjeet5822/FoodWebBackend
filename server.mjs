@@ -2,118 +2,168 @@ import { dbConnect } from "./config/dbConnect.mjs";
 import express from "express";
 import morgan from "morgan";
 import dotenv from "dotenv";
+dotenv.config();
 import passport from "passport";
 import session from "express-session";
-// import cookieParser from "cookie-parser";
 import cors from "cors";
 import AppError from "./utils/AppError.mjs";
-import "./config/passport.mjs"
+import "./config/passport.mjs"; // Ensure passport strategies are configured
 import { indexRoute } from "./routes/indexRoute.mjs";
-dotenv.config();
+import jwt from "jsonwebtoken";
+import cookieParser from "cookie-parser";
 
-// initialize app 
 const app = express();
 
-// to parse body
+// Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-// to log status code, url, content-length, response time.
-app.use(morgan('tiny'));
+app.use(cookieParser());
+app.use(morgan("tiny"));
 
-// // Define the secret key for signing cookies
-// const cookieParserSecret = process.env.SESSION_SECRET;
-// app.use(cookieParser(cookieParserSecret));
-
-app.use(session({
-  secret: process.env.SESSION_SECRET,
-  resave: false,
-  saveUninitialized: true,
-  cookie: { secure: process.env.NODE_ENV === 'production', httpOnly: true }
-}));
-
+// CORS configuration
 const whitelist = [process.env.FE_URL, process.env.DEPLOY_FE_URL];
-
 const corsOptionsDelegate = (req, callback) => {
-  if (whitelist.indexOf(req.header("Origin")) !== -1) {
+  const origin = req.header("Origin");
+  if (whitelist.includes(origin) || !origin) {
     callback(null, {
-      origin: req.header("Origin"), //// Automatically reflects the request's origin if in the whitelist
+      origin: true,
       credentials: true,
       methods: "GET,HEAD,PATCH,POST,PUT,DELETE",
       allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-    }); // reflect (enable) the requested origin in the CORS response
+    });
   } else {
-    callback(null, {origin: false}); // Deny CORS if not in whitelist
+    callback(null, { origin: false });
   }
 };
 app.use(cors(corsOptionsDelegate));
 
+// Session configuration
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === "production",
+      httpOnly: true,
+      maxAge: 24 * 60 * 60 * 1000, // 1 day
+    },
+  })
+);
+
+// Initialize passport
 app.use(passport.initialize());
 app.use(passport.session());
 
+// Routes
 app.use(indexRoute);
 
-// Google OAuth route
-app.get('/auth/google',
-  passport.authenticate('google', { scope: ['profile', 'email'] }) // profile[name, profile picture, gender, dob]
+// Google OAuth login route
+app.get(
+  "/auth/google",
+  passport.authenticate("google", { scope: ["profile", "email"] })
 );
 
-// Callback route
-app.get('/auth/google/callback', 
-  passport.authenticate('google', { failureRedirect: '/' }),
+// Google OAuth callback route
+app.get(
+  "/auth/google/callback",
+  passport.authenticate("google", { failureRedirect: "/login" }),
   (req, res) => {
-    res.redirect(`${process.env.DEPLOY_FE_URL}`);
+    const { name, _id } = req.user;
+    // console.log("req.user(server.js)", req.user)
+    const refreshToken = jwt.sign(
+      { userId: _id, user: name },
+      process.env.SECRET_KEY,
+      { expiresIn: "7d" }
+    );
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true, // Prevents XSS attacks
+      secure: process.env.NODE_ENV === "production", // `false` in development, `true` in production
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "Lax", // `Strict` can block requests in some cases, `Lax` is better for authentication
+      maxAge: 7 * 24 * 60 * 60 * 1000, // Seven Days
+    });
+    req.session.user = req.user;
+    // console.log("req.session.user (server.mjs)",req.session.user)
+    // console.log("Authenticated User req.user(server.mjs):", req.user);
+
+    // console.log("Set-Cookie:", res.getHeaders()["set-cookie"]); // Log the cookie header
+    // console.log("Cookies stored:", req.cookies);
+
+
+    res.redirect(`${process.env.DEPLOY_FE_URL}/googlecallback`); // Redirect to homepage
   }
 );
 
-
-// Logout route
-app.post('/logout', (req, res, next) => {
-  // console.log("line 48")
+// Auth status check
+app.get("/api/auth/status", (req, res, next) => {
+  const token = req.cookies?.refreshToken;
+  if (!token) {
+    return next(
+      new AppError(401, "Authentication token not found", {
+        isAuthenticated: false,
+      })
+    );
+  }
   try {
-    if (req.isAuthenticated()) {
-      req.logout((err) => {
-        if (err) return next(new AppError("Logout Failed", 500));
-  
-        req.session.destroy((err) => {
-          if (err) return next(new AppError("Session destruction failed", 500));
-  
-          res.clearCookie('connect.sid'); // Clear session cookie
-          res.status(200).json({ message: 'Logout successful' }); // Send confirmation to FE
-        });
-      });
-    } else {
-      next(new AppError("No active session Found", 400))  
-    }
-  } catch (error) {
-    next(error);
+    jwt.verify(token, process.env.SECRET_KEY);
+    res.status(200).json({ isAuthenticated: true });
+  } catch (err) {
+    res.clearCookie("refreshToken");
+    next(
+      new AppError(401, "Invalid or expired token", { isAuthenticated: false })
+    );
   }
 });
 
-// Handle undefined routes
-// 404 handler for unknown routes
+app.post("/logout", (req, res, next) => {
+  try {
+    req.logout((err) => {
+      if (err) {
+        return next(new AppError(500, "Logout failed"));
+      }
+      req.session.destroy((err) => {
+        if (err) {
+          return next(new AppError(500, "Session destruction failed"));
+        }
+        res.clearCookie("connect.sid", {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "Lax",
+        });
+        res.clearCookie("refreshToken", {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "Lax",
+        });
+        res
+          .status(200)
+          .json({ message: "Logout successful", isAuthenticated: false });
+      });
+    });
+  } catch (error) {
+    next(new AppError(500, error.message));
+  }
+});
+
+// Error handling
 app.all("*", (req, res, next) => {
-  res.status(404).json({
-    status: "fail",
-    message: `Can't find ${req.originalUrl} on this server!`,
-  });
+  next(new AppError(404, `Can't find ${req.originalUrl} on this server!`));
 });
 
-
-// Global error handling middleware
+// Global error handler
 app.use((err, req, res, next) => {
-  console.error('Error:', err);
-
+  console.error("Error:", err);
   const statusCode = err.statusCode || 500;
-  const message = err.message || 'Internal Server Error';
-
   res.status(statusCode).json({
-    status: err.status || 'error',
-    message
+    status: err.status || "error",
+    message: err.message || "Internal Server Error",
+    ...err.data, // Merge extra data like isAuthenticated
   });
 });
 
-const PORT = process.env.PORT;
+// Start server
+const PORT = process.env.PORT || 8082;
 app.listen(PORT, () => {
   dbConnect();
-  console.log(`app running http://localhost:${PORT}`)
-})
+  console.log(`App running at http://localhost:${PORT}`);
+});

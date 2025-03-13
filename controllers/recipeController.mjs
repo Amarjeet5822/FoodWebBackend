@@ -6,7 +6,7 @@ export const searchRecipes = async (req, res, next ) => {
   try {
     await getRecipes(req, res); // Reuse getRecipes logic for search
   } catch (error) {
-    next(new AppError(error?.message, 500));
+    next(new AppError(500, error?.message));
   }
 };
 

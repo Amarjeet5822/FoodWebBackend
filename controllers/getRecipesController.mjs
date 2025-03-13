@@ -12,11 +12,11 @@ const fetchRandomRecipes = async () => {
   try {
     console.log("Fetching new recipes...");
     const apiKey = process.env.SPOONACULAR_API;
-    const url = `https://api.spoonacular.com/recipes/random?apiKey=${apiKey}&number=25`;
+    const url = `https://api.spoonacular.com/recipes/random?apiKey=${apiKey}&number=27`;
     const response = await axios.get(url);
     return response.data.recipes; // Adjusted to use 'recipes' instead of 'results'
   } catch (error) {
-    next(new AppError(error?.message, 500));
+    next(new AppError(500, error?.message));
   }
 };
 
@@ -43,6 +43,6 @@ export const getRecipes = async (req, res, next) => {
 
     res.status(200).json(filteredRecipes);
   } catch (error) {
-    next(new AppError(error?.message, 500));
+    next(new AppError(500, error?.message));
   }
 };
