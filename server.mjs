@@ -83,7 +83,7 @@ app.get(
       maxAge: 7 * 24 * 60 * 60 * 1000, // Seven Days
     });
     req.session.user = req.user;
-    res.redirect(`${process.env.FE_URL}/googlecallback`); // Redirect to homepage
+    res.redirect(`${process.env.DEPLOY_FE_URL}/googlecallback`); // Redirect to homepage
   }
 );
 
