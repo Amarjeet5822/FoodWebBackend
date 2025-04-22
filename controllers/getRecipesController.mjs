@@ -12,7 +12,7 @@ const fetchRandomRecipes = async () => {
   try {
     console.log("Fetching new recipes...");
     const apiKey = process.env.SPOONACULAR_API;
-    const url = `https://api.spoonacular.com/recipes/random?apiKey=${apiKey}&number=27`;
+    const url = `https://api.spoonacular.com/recipes/random?apiKey=${apiKey}&number=500`;
     const response = await axios.get(url);
     return response.data.recipes; // Adjusted to use 'recipes' instead of 'results'
   } catch (error) {
@@ -22,8 +22,7 @@ const fetchRandomRecipes = async () => {
 
 // Combined route to fetch all categories
 export const getRecipes = async (req, res, next) => {
-  const { query } = req.query;
-
+  const { query, page = 1, limit = 15 } = req.query;
   try {
     // Check if cache is still valid
     if (!cachedRecipes || Date.now() - lastFetchTime >= CACHE_DURATION) {
@@ -40,8 +39,13 @@ export const getRecipes = async (req, res, next) => {
         }
       });
     }
-
-    res.status(200).json(filteredRecipes);
+     // Step 2: Pagination logic
+     console.log("total_Products filteredRecipes" , filteredRecipes.length);
+     const startIndex = (parseInt(page) - 1) * parseInt(limit);
+     const endIndex = startIndex + parseInt(limit);
+     const paginatedRecipes = filteredRecipes.slice(startIndex, endIndex);
+    console.log("total_Products" , paginatedRecipes.length);
+    res.status(200).json(paginatedRecipes);
   } catch (error) {
     next(new AppError(500, error?.message));
   }

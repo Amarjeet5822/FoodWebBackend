@@ -20,7 +20,7 @@ const savePreferences = async (req, res, next) => {
     await newRecipe.save();
     res.status(201).json(newRecipe);
   } catch (error) {
-    next(new AppError(500, "Error saving newRecipe"));
+    next(new AppError(500, error.message));
   }
 };
 

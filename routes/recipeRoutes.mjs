@@ -11,6 +11,7 @@ export const recipeRoutes = express.Router();
 // method:  http://localhost:8082/api/recipes;
 recipeRoutes.get("/", getRecipes);
 recipeRoutes.get("/search", searchMiddelware, searchRecipes );
+
 recipeRoutes.post("/preference/save", UserIsAuthenticated, userPreferenceMiddelware, savePreferences );
 recipeRoutes.get("/preference/save", UserIsAuthenticated, getSavedRecipe );
 recipeRoutes.delete("/preference/save/:imageId", UserIsAuthenticated,    deleteSavedRecipe );

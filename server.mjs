@@ -83,14 +83,7 @@ app.get(
       maxAge: 7 * 24 * 60 * 60 * 1000, // Seven Days
     });
     req.session.user = req.user;
-    // console.log("req.session.user (server.mjs)",req.session.user)
-    // console.log("Authenticated User req.user(server.mjs):", req.user);
-
-    // console.log("Set-Cookie:", res.getHeaders()["set-cookie"]); // Log the cookie header
-    // console.log("Cookies stored:", req.cookies);
-
-
-    res.redirect(`${process.env.DEPLOY_FE_URL}/googlecallback`); // Redirect to homepage
+    res.redirect(`${process.env.FE_URL}/googlecallback`); // Redirect to homepage
   }
 );
 
@@ -147,6 +140,7 @@ app.post("/logout", (req, res, next) => {
 
 // Error handling
 app.all("*", (req, res, next) => {
+  console.log("this line is done")
   next(new AppError(404, `Can't find ${req.originalUrl} on this server!`));
 });
 
